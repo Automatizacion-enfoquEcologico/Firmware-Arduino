@@ -3,7 +3,7 @@
 #define RAIZ 1.4142 // SQRT(2)
 #define I_V 0.4457  // 1.56A / 3.5V
 #define R_ENVIO 10502 // 0x3FFF/1.56 
-#define T 100       //milisegundos tiempo para 6 ciclos a 60 HZ
+#define T 50       //milisegundos tiempo para 3 ciclos a 60 HZ
 
 //  PINES
 
@@ -40,7 +40,7 @@ float sum = 0;  // acumulador de la suma del cuadrado de voltaje
 int cont_s = 0;    // Periodo discreto
 long tiempo = 0; // referencia temporal
 int estado_espera = 0;
-
+bool calcular = true;
 bool riego = false;
 byte trama [tam_trama] = {INICIO, 0, 0, 0};
 
@@ -63,25 +63,31 @@ void loop() {
   switch (estado)
   {
     case ESPERA:
-      if (estado_espera == 0) {
+      if (calcular) {
         sum = 0;
         cont_s = 0;
         Irms_pre = Irms;
         Irms = 0;
         estado_espera = 1;
         tiempo = millis();
+        calcular = false;
       }
-      else if (estado_espera == 1) {
-        Sensor_RMS();
+      else if (millis() - tiempo < T) // muestreo de la señal en T =  n vaces el periodo
+      {
+        vsct = analogRead(SCT) * (5 / 1023.0);//voltaje del sensor
+        sum = sum + sq(vsct); //Sumatoria de Cuadrados
+        cont_s = cont_s + 1;  // cuenta cada vez que toma una muestra
+        delay(1);
+      } else {
+        vsct = sqrt((sum) / cont_s);
+        Irms = vsct * I_V * RAIZ;
+      }
+      if (Serial.available() > 0)
+      {
+        estado = LECTURA;
+        calcular = true;
       }
 
-      if (Serial.available() > 0) {
-        // read the incoming byte:
-        if (Irms == 0) {
-          Irms = Irms_pre;
-        }
-        estado = LECTURA;
-      }
       break;
     case LECTURA:
       estado_espera = 0; //reinicio del estado ESPERA
@@ -108,9 +114,9 @@ void loop() {
 
       encapsular();
       for (cont = 0; cont < tam_trama; cont++)
-        {
+      {
         Serial.write(trama[cont]);
-        }
+      }
       estado = ESPERA;
       break;
 
@@ -151,20 +157,5 @@ void actualizar_entradas_deprueba(void)
   ldr = HIGH << 1;
   ldr = ldr + HIGH;
   higrometro = HIGH << 1;
-}
-
-bool Sensor_RMS() // el valor final se encontrara en irms
-{
-  if (millis() - tiempo < T) // muestreo de la señal en T =  n vaces el periodo
-  {
-    vsct = analogRead(SCT) * (5 / 1023.0);//voltaje del sensor
-    sum = sum + sq(vsct); //Sumatoria de Cuadrados
-    cont_s = cont_s + 1;  // cuenta cada vez que toma una muestra
-    delay(1);
-  } else {
-    vsct = sqrt((sum) / cont_s);
-    Irms = vsct * I_V * RAIZ;
-    estado_espera = 2;
-  }
 }
 
