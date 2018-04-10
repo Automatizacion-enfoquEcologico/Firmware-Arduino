@@ -1,9 +1,16 @@
+
+
+#define RAIZ 1.4142 // SQRT(2)
+#define I_V 0.4457  // 1.56A / 3.5V
+#define R_ENVIO 10502 // 0x3FFF/1.56 
+#define T 100       //milisegundos tiempo para 6 ciclos a 60 HZ
+
 //  PINES
 
-#define LDR1 7
-#define LDR2 6
-#define HIGROMETRO 5
-#define CORRIENTE A0
+#define LDR1 10
+#define LDR2 11
+#define HIGROMETRO 12
+#define SCT A5
 #define RELE 13
 
 //  ESTADOS
@@ -13,23 +20,29 @@
 #define ENVIO 3       //Se envia la trama al DemoQE
 #define SALIDAS 2     //Si hubo algun cambio en la salida reencapsula y actualizaq la salida (activa el riego).  
 
+
 // ETIQUETAS
 
-
 #define INICIO 0xFF
-#define tam_trama 3
+#define tam_trama 4
 
 int cont = 0;
 int estado = ESPERA;
 byte data_in = 0;
 byte data_out = 0;
-byte adc = 254;
+unsigned int adc = 254;
 byte ldr = 0;
 byte higrometro = 0;
-
+float Irms = 0;
+float Irms_pre = 0;
+float vsct; //voltaje instantaneo del sensor
+float sum = 0;  // acumulador de la suma del cuadrado de voltaje
+int cont_s = 0;    // Periodo discreto
+long tiempo = 0; // referencia temporal
+int estado_espera = 0;
 
 bool riego = false;
-byte trama [tam_trama] = {INICIO, 0, 0};
+byte trama [tam_trama] = {INICIO, 0, 0, 0};
 
 void setup() {
   // put your setup code here, to run once:
@@ -41,7 +54,7 @@ void setup() {
   pinMode (HIGROMETRO, INPUT_PULLUP);
   pinMode (RELE, OUTPUT);
 
-  digitalWrite (RELE, riego);
+  digitalWrite (RELE, !riego);
 }
 
 void loop() {
@@ -50,15 +63,29 @@ void loop() {
   switch (estado)
   {
     case ESPERA:
-      actualizar_entradas_deprueba();
+      if (estado_espera == 0) {
+        sum = 0;
+        cont_s = 0;
+        Irms_pre = Irms;
+        Irms = 0;
+        estado_espera = 1;
+        tiempo = millis();
+      }
+      else if (estado_espera == 1) {
+        Sensor_RMS();
+      }
+
       if (Serial.available() > 0) {
         // read the incoming byte:
+        if (Irms == 0) {
+          Irms = Irms_pre;
+        }
         estado = LECTURA;
       }
       break;
     case LECTURA:
-
-      encapsular();
+      estado_espera = 0; //reinicio del estado ESPERA
+      actualizar_entradas();
       data_in = Serial.read();
 
       if (data_in == 0xFF && riego) {
@@ -78,52 +105,66 @@ void loop() {
       }
       break;
     case ENVIO:
+
+      encapsular();
       for (cont = 0; cont < tam_trama; cont++)
-      {
+        {
         Serial.write(trama[cont]);
-      }
+        }
       estado = ESPERA;
       break;
 
     case SALIDAS:
-      digitalWrite(RELE, riego);
-      encapsular();
-      estado = 3;
+      digitalWrite(RELE, !riego);
+      estado = ENVIO;
       break;
     default:
 
       break;
-
-
   }
 
 }
 
 void encapsular(void)
 {
-  trama[1] = adc; // Prueba
-  trama[2] = ldr << 2;
-  trama[2] = trama[2] + higrometro + riego;
+  adc = Irms * R_ENVIO;
+  if (adc > 0x3FFF) {
+    adc = 0x3FFF;
+  }
+  adc = adc << 1;
+  trama[1] = adc >> 8;
+  trama[2] = adc & 0x00FF;
+  trama[3] = ldr << 2;
+  trama[3] = trama[3] + higrometro + riego;
 }
 
 void actualizar_entradas(void)
 {
   ldr = 0;
-  adc = digitalRead(CORRIENTE) / 4;
-  if (adc == 255)adc = 254;
-  ldr = digitalRead(LDR1) << 1;
-  ldr = ldr + digitalRead(LDR2);
-  higrometro = digitalRead(HIGROMETRO) << 1;
+  ldr = (!digitalRead(LDR1)) << 1;
+  ldr = ldr + (!digitalRead(LDR2));
+  higrometro = (!digitalRead(HIGROMETRO)) << 1;
 }
 void actualizar_entradas_deprueba(void)
 {
   ldr = 0;
-  adc = 255;
-  if (adc == 255)adc = 254;
   ldr = HIGH << 1;
   ldr = ldr + HIGH;
   higrometro = HIGH << 1;
 }
 
-
+bool Sensor_RMS() // el valor final se encontrara en irms
+{
+  if (millis() - tiempo < T) // muestreo de la señal en T =  n vaces el periodo
+  {
+    vsct = analogRead(SCT) * (5 / 1023.0);//voltaje del sensor
+    sum = sum + sq(vsct); //Sumatoria de Cuadrados
+    cont_s = cont_s + 1;  // cuenta cada vez que toma una muestra
+    delay(1);
+  } else {
+    vsct = sqrt((sum) / cont_s);
+    Irms = vsct * I_V * RAIZ;
+    estado_espera = 2;
+  }
+}
 
