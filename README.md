@@ -13,5 +13,5 @@ Pc que ejecute Windows 7 o superior
 ## Software
 
 IDE de arduino 
-[](https://www.arduino.cc/en/Main/Software)
+[IDE](https://www.arduino.cc/en/Main/Software)
 
