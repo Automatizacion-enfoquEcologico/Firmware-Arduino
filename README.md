@@ -1,19 +1,17 @@
 # Firmware-Arduino
 
-Contiene el programa en C++ que ejecuta el modulo externo (Arduino UNO) configurado como esclavo.
+## Descripción
+Contiene el programa en C++ que ejecuta el modulo externo (Arduino UNO) configurado como esclavo. Este módulo está diseñado con el objetivo de tener un subsistema para capturar data del ambiente en el exterior del hogar, para ser transmitida al módulo central en el interior del hogar con un solo enlace mediante comunicación serial a 9600baudios.
 
-Este módulo está diseñado con el objetivo de tener un subsistema para capturar data del ambiente en el exterior del hogar, para ser transmitida al módulo central en el interior del hogar con un solo enlace mediante comunicación serial a 9600baudios.
+## Tabla de Contenidos
+- [Requisitos](#requisitos)
+- [Software](#software)
 
-Entradas:
-=
+## Requisitos
+Pc que ejecute Windows 7 o superior
 
-+ Potencia instantánea consumida en el hogar, a través de entrada analógica.
-+ Intensidad de luz mediante dos entradas digitales:
-00- Ausencia luz.
-01- Intensidad media de luz.
-11- Intensidad Alta de luz.
-+ Humedad del suelo mediante entrada digital.
+## Software
 
-Salida:
-=
-+ Salida digital a relevador para activar válvula de riego.
+IDE de arduino 
+[](https://www.arduino.cc/en/Main/Software)
+
